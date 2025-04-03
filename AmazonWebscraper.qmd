@@ -1,0 +1,457 @@
+---
+title: "Web Scraping Amazon with RSelenium in R"
+author: "Sarina Etminan"
+format: 
+  html:
+    css: styles.css
+editor: visual
+---
+
+#### Web Scraping Amazon with RSelenium in R: A Beginner's Guide
+
+1.  Introduction
+
+    In this tutorial, you will be introduced to RSelenium, a powerful R package which allows data scraping for dynamic websites.
+
+    Please note: This tutorial was developed and tested on macOS. Windows users may need to adjust the setup steps slightly, such as installing ChromeDriver manually and configuring environment variables.
+
+2.  Why RSelenium?
+
+    Real browsers like Chrome and Firefox may be automated with RSelenium, a potent web scraping tool. Because RSelenium can handle dynamic JavaScript material, unlike simpler tools like rvest, it can click buttons, scroll, fill forms, and simulate human activities. This makes it perfect for complex websites like Amazon, where rvest frequently fails or is blocked.
+
+3.  Purpose
+
+    With the help of RSelenium, a potent program that automates web interactions in actual browsers, this lesson aims to introduce people to web scraping.
+
+#### Setting up RSelenium
+
+1.  Installation & Loading
+
+    ```{r}
+    #| eval: false
+    # Install required packages if not already installed
+    install.packages("RSelenium")
+    install.packages("httr")
+
+    # Load RSelenium
+    library(RSelenium)
+    ```
+
+2.  Manual Sever Setup
+
+    RSelenium no longer auto-starts sessions, so we must manually install and run ChromeDriver to start the Selenium server.
+
+3.  ChromeDriver Installation Using Homebrew (Mac/Linux Users)
+
+    To interact with Google Chrome, we need to install **ChromeDriver**, which allows Selenium to control the browser. **Using Homebrew**, we can install ChromeDriver with simple commands.
+
+    Press command + space and search "Terminal" in spotlight search, open a terminal window and type the following
+
+    ```{r}
+    # brew install chromedriver
+    ```
+
+    Check version to confirm installation:
+
+    ```{r}
+    # chromedriver --version
+    ```
+
+    Expected output (Versions may vary!):
+
+    ```{r}
+    # ChromeDriver 134.0.6998.89
+    ```
+
+    Updating Chromedriver (Optional):
+
+    ```{r}
+    # brew upgrade chromedriver
+    ```
+
+4.  Establishing a Connection to The Local Host
+
+    For RSelenium to interact with ChromeDriver, a local server is required.
+
+    Open the terminal, if it is not already open and type in the following command:
+
+    ```{r}
+    # chromedriver --port=9515
+    ```
+
+    Expected output:
+
+    ```{r}
+    # "ChromeDriver was started successfully on port 9515."
+    ```
+
+    Open another terminal window and run the following to verify if ChromeDriver is running
+
+    ```{r}
+    # curl http://localhost:9515/status
+    ```
+
+    Expected output:
+
+    ```{r}
+    # "value":{"ready":true,"message":"ChromeDriver ready for new sessions."
+    ```
+
+    This indicates that chromedriver is running sucessfully!
+
+5.  Creating and Managing a Chrome Session in RSelenium
+
+    ```{r}
+    #| results: hide
+    library(httr)
+
+    # Create a new Chrome session
+    response <- POST("http://localhost:9515/session",
+        body = list(
+            capabilities = list(
+                alwaysMatch = list(
+                    browserName = "chrome", 
+                    #browserName = "chrome" → Specifies Chrome as the browser.
+                    `goog:chromeOptions` = list(
+                        args = c(
+                            "--disable-blink-features=AutomationControlled", 
+                            # Disables automation flags (--disable-blink-features       =AutomationControlled) to help bypass bot detection.
+                            "--disable-gpu",  
+                            # Custom User-Agent to mimic real users, reducing the chance of                            being blocked.
+                            "--user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.6998.89 Safari/537.36"
+                        )
+                    )
+                )
+            )
+        ),
+        encode = "json"
+    )
+
+    # Extract session ID
+    session_data <- content(response, "parsed")
+
+    # Check if session ID is created
+    if (!is.null(session_data$value$sessionId)) {
+        session_id <- session_data$value$sessionId
+        print(paste("Session ID:", session_id))
+    } else {
+        # If something goes wrong, error message is outputted to asist with debugging
+        print("Error: Session not created!")
+        print(session_data)
+    }
+
+    # Navigate to Amazon immediately after session starts
+    POST(paste0("http://localhost:9515/session/", session_id, "/url"),
+         body = list(url = "https://www.amazon.com/"),
+         encode = "json")
+    ```
+
+    Success Confirmation: If Amazon's website **opens automatically** in a new Chrome window, the script has executed successfully!
+
+    Customization Tip: Want to scrape a different website? Simply **replace** the Amazon URL in the script, this will allow you to dynamically navigate to any website of your choice.
+
+    ```{r}
+    # POST(paste0("http://localhost:9515/session/", session_id, "/url"),
+    #     body = list(url = "https://www.YOUR_WEBSITE_HERE.com/"),
+    #     encode = "json")
+    ```
+
+#### Product Data Extraction
+
+1.  Understanding XPath in R Selenium
+
+    Selecting how to find items is crucial when automating web scraping. XPath and ID-based selection are the two primary techniques. A query language called XPath is used to locate HTML elements; it is particularly helpful on websites that employ a lot of JavaScript.
+
+    An example of Xpath: `//h2[contains(@class, 'a-size-medium')]/span`
+
+    -   `//h2` → Selects all `<h2>` elements on the page.
+
+    -   `contains(@class, 'a-size-medium')` → Filters `<h2>` elements that **contain** the class `"a-size-medium"` (often used for product titles on Amazon).
+
+    -   `/span` → Moves **inside** the `<h2>` tag to select the `<span>` element where the actual text (title) is stored.
+
+2.  Why Not Use ID-Based Selection?
+
+    Amazon frequently employs dynamic or missing IDs, which might throw your script off balance even though ID-based selection is typically the best option. For dynamic websites like Amazon, XPath is more dependable. I've already extracted the required XPaths for ease of use.
+
+3.  Extracting Amazon's unique HTML Elements for Buttons, Search, and Text
+
+    Amazon's search bar XPath is: `{//input[@name='field-keywords']}` This selects the input field where users type search queries.
+
+4.  Automating the Search Bar
+
+    ```{r}
+    #| results: hide
+    #| warning: false
+    search_box <- POST(
+        paste0("http://localhost:9515/session/", session_id, "/element"),
+        body = list(using = "xpath", value = "//input[@name='field-keywords']"),
+        encode = "json"
+    )
+
+    search_box_data <- content(search_box, "parsed")
+    print(search_box_data)
+    ```
+
+    Expected Output:
+
+    ```{r}
+    # $value
+    # $value$`element-6066-11e4-a52e-4f735466cecf`
+    # [1] "f.5A9818CED6D2344F72FC399ADDE3F035.d.F2D0FB74E305B8CD8523436846DC5330.e.12"
+    ```
+
+    This confirms that RSelenium has successfully located the search bar on the page.
+
+5.  Overcoming Amazon's Automation Restrictions
+
+    We utilize copy-paste instead of typing to prevent detection because Amazon blocks bots quickly. We find the search bar and go straight to the page with our item's search results.
+
+    ```{r}
+    #| results: hide
+    #| warning: false 
+
+    # Extract the response content from our previous search box request
+    search_box_data <- content(search_box, "parsed")
+    # content(search_box, "parsed") → Extracts the structured response from our search bar request.
+
+    # Retrieve the element ID of the search box
+    search_element_id <- search_box_data$value$`element-6066-11e4-a52e-4f735466cecf`
+    #search_element_id <- search_box_data$value$... → Retrieves the unique element ID assigned to the search bar.
+
+    # Print a confirmation message
+    print(paste("Search box found:", search_element_id))
+    # print(...) → Confirms that the search bar was successfully located.
+    ```
+
+6.  Navigating to Amazon's Search Results
+
+    ```{r}
+    #| results: hide
+    #| warning: false
+
+    # Send a request to navigate to a search results page
+    # This POST request loads the Amazon search page for laptops.
+    POST(
+        paste0("http://localhost:9515/session/", session_id, "/url"),
+        # session_id → Ensures the command is executed in our active browser session.
+        # The URL format "https://www.amazon.com/s?k=ITEM" allows us to dynamically modify the search       term
+        body = list(url = "https://www.amazon.com/s?k=laptop"),  # Amazon search URL for "laptop"
+        encode = "json"
+    )
+    ```
+
+7.  Modifying the Search Term
+
+    You can **change the search term** by replacing `"laptop"` in the URL with any item of your choice:
+
+    ```{r}
+    # url = "https://www.amazon.com/s?k=ITEM"
+    ```
+
+8.  Extracting Product Titles
+
+    ```{r}
+    # value = "//h2[contains(@class, 'a-size-medium')]/span"
+    ```
+
+    ```{r}
+    #| results: hide
+    library(httr)
+
+    # Wait for Amazon page to load fully before doing anything
+    Sys.sleep(5)
+
+    # Scroll down to trigger dynamic content
+    POST(
+      paste0("http://localhost:9515/session/", session_id, "/execute/sync"),
+      body = list(
+        script = "window.scrollTo(0, document.body.scrollHeight);",
+        args = list()
+      ),
+      encode = "json"
+    )
+
+    Sys.sleep(3)  # Give it more time to load
+
+    # Step 1: Locate all product titles
+    response <- POST(
+      paste0("http://localhost:9515/session/", session_id, "/elements"),
+      body = list(
+        using = "xpath",
+        value = "//h2[contains(@class, 'a-size-medium')]/span"
+      ),
+      encode = "json"
+    )
+
+    product_elements <- content(response, "parsed")
+
+    if (!is.null(product_elements$value) && length(product_elements$value) > 0) {
+      product_titles <- c()
+      
+      for (element in product_elements$value) {
+        element_id <- unlist(element)[1]
+        
+        title_response <- GET(
+          paste0("http://localhost:9515/session/", session_id, "/element/", element_id, "/text")
+        )
+        
+        title_content <- content(title_response, "parsed")
+        
+        if (!is.null(title_content$value) && title_content$value != "") {
+          product_titles <- c(product_titles, title_content$value)
+        }
+      }
+
+      if (length(product_titles) > 0) {
+        print(product_titles)
+      } else {
+        print("Error: Titles found but text extraction failed.")
+      }
+
+    } else {
+      print("No product titles found.")
+    }
+    ```
+
+9.  Extracting Product Prices from Amazon
+
+    Amazon stores product prices in **HTML `<span>` elements**: `<span class="a-price-whole">999</span>`
+
+    ```{r}
+    #| results: hide
+    library(httr)
+
+    # This script sends a request to find all elements matching the XPath query for product prices.
+    # Step 1: Locate all product prices
+    response <- POST(
+      paste0("http://localhost:9515/session/", session_id, "/elements"),
+      body = list(
+        using = "xpath",
+        value = "//span[contains(@class, 'a-price-whole')]"
+      ),
+      encode = "json"
+    )
+
+    # Parse response
+    # The response is then extracted using content(response, "parsed") to access the product price elements.
+    price_elements <- content(response, "parsed")
+
+    # Check if elements were found
+    if (!is.null(price_elements$value) && length(price_elements$value) > 0) {
+      product_prices <- c()  # Initialize empty list
+      
+      # Loops through each price element, extracts the unique ID, and requests the text value of each     price.
+      for (element in price_elements$value) {
+        if (!is.null(element$`element-6066-11e4-a52e-4f735466cecf`)) {
+          element_id <- element$`element-6066-11e4-a52e-4f735466cecf`
+          
+          # Extract text from each price element
+          price_response <- GET(
+            paste0("http://localhost:9515/session/", session_id, "/element/", element_id, "/text")
+          )
+          
+          price_content <- content(price_response, "parsed")
+          
+          if (!is.null(price_content$value)) {
+            # The extracted price values are stored in product_prices.
+            product_prices <- c(product_prices, price_content$value)
+          }
+        }
+      }
+      
+      # Print extracted prices
+      # If at least one price was extracted, it prints out all the product prices.
+      if (length(product_prices) > 0) {
+        print(product_prices)
+      } else {
+        # If no prices are found, an error message is displayed.
+        print("Error: Prices were found but couldn't extract text.")
+      }
+      
+    } else {
+      print("No product prices found.")
+    }
+    ```
+
+10. Saving The Scraped Data
+
+    Store product titles & prices together
+
+    ```{r}
+    #| results: hide
+    # Ensure lists are the same length
+    min_length <- min(length(product_titles), length(product_prices))
+
+    # Pad missing prices with NA
+    while (length(product_prices) < min_length) {
+      product_prices <- c(product_prices, NA)
+    }
+
+    # Replace empty string prices with NA
+    product_prices[product_prices == ""] <- NA
+
+    # Create your dataframe
+    amazon_data <- data.frame(
+      Title = product_titles[1:min_length],
+      Price = product_prices[1:min_length],
+      stringsAsFactors = FALSE
+    )
+
+    # Print the dataframe
+    print(amazon_data)
+    ```
+
+11. Saving the data frame to a CSV File
+
+    ```{r}
+    #| results: hide
+    # Create a new CSV file with whatever name you find fitting enough for your new file 
+    # I will be using the name 'amazon_products.csv'
+    # Exclude row names 
+    write.csv(amazon_data, "amazon_products.csv", row.names = FALSE, na = "NA")
+
+    # Print a verification to see if the data was saved properly to the csv file
+    # Once the script runs successfully, this message confirms the data has been properly saved in the working directory.
+    print("Data sucessfully saved as 'amazon_products.csv'")
+    ```
+
+    If the script successfully works, you have a structured dataset with the extracted product titles and corresponding prices. Congratulations!
+
+#### References & Citations
+
+1.  RSelenium GitHub Repository
+
+    https://github.com/ropensci/RSelenium
+
+    → Source for RSelenium installation and usage examples.
+
+2.  RSelenium Manual (via CRAN)
+
+    https://cran.r-project.org/web/packages/RSelenium/RSelenium.pdf
+
+    → Documentation for functions like remoteDriver(), open(), and capabilities structure.
+
+3.  ChromeDriver Documentation
+
+    https://chromedriver.chromium.org/
+
+    → Info about installing and using ChromeDriver on macOS.
+
+4.  W3Schools: XPath Tutorial
+
+    https://www.w3schools.com/xml/xpath_intro.asp
+
+    → For understanding and constructing XPath queries.
+
+5.  HTTR Package Documentation
+
+    https://cran.r-project.org/web/packages/httr/httr.pdf
+
+    → For understanding how POST() and GET() requests are structured in R.
+
+6.  Quarto Documentation
+
+    https://quarto.org/docs/
+
+    → Helped format R code blocks, chunk options, and output rendering for .qmd files.
