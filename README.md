@@ -42,3 +42,14 @@ _(Optional: Add a screenshot or real CSV sample in the `/output/` folder)_
 1. Install RSelenium and dependencies:
    ```r
    install.packages("RSelenium")
+
+> This project is for **educational purposes** only.
+> Scraping Amazon may violate their [Terms of Service](https://www.amazon.com/gp/help/customer/display.html?nodeId=508088).
+> Use responsibly and avoid excessive requests.
+
+## 👤 Author
+
+**Sarina [cybwifey]**  
+Aspiring AI Engineer | BSc Data Science @ Simon Fraser University  
+🌐 [github.com/cybwifey](https://github.com/cybwifey)
+
