@@ -1,15 +1,15 @@
-# 🛍️ Amazon Product Web Scraper (RSelenium + R)
+# Amazon Product Web Scraper (RSelenium + R)
 
 This project is a browser automation tool built using **RSelenium** in **R** that scrapes product data from Amazon. It collects key details such as:
 
-- ✅ Product Title
-- 💵 Price
+-  Product Title
+-  Price
 
 The goal is to create a structured dataset for analysis or downstream ML/NLP applications.
 
 ---
 
-## 🚀 Features
+## Features
 
 - Uses **RSelenium** to control a browser and navigate Amazon search pages.
 - Handles dynamic web elements and extracts key product info.
@@ -24,20 +24,18 @@ The goal is to create a structured dataset for analysis or downstream ML/NLP app
 |---------------------------|----------|--------|
 | Example Product Name      | $29.99   | 4.5    |
 
-_(Optional: Add a screenshot or real CSV sample in the `/output/` folder)_
-
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Language:** R  
-- **Libraries:** RSelenium, dplyr, rvest (if used)  
+- **Libraries:** RSelenium, dplyr 
 - **Export:** CSV  
 - **Scraping Target:** Amazon.ca/.com product listings
 
 ---
 
-## 📌 How to Run
+## How to Run
 
 1. Install RSelenium and dependencies:
    ```r
@@ -47,9 +45,8 @@ _(Optional: Add a screenshot or real CSV sample in the `/output/` folder)_
 > Scraping Amazon may violate their [Terms of Service](https://www.amazon.com/gp/help/customer/display.html?nodeId=508088).
 > Use responsibly and avoid excessive requests.
 
-## 👤 Author
-
+👤 Author
 **Sarina [cybwifey]**  
-Aspiring AI Engineer | BSc Data Science @ Simon Fraser University  
+Aspiring AI Engineer | BSc Data Science 
 🌐 [github.com/cybwifey](https://github.com/cybwifey)
 
